@@ -62,9 +62,24 @@ st.sidebar.markdown(f"**Stake recomendada:** R$ {stake_recomendada:.2f}")
 
 st.subheader(f"Análise do Jogo: {jogo_selecionado}")
 
+# Dicionário para armazenar análises separadas
+if "analises" not in st.session_state:
+    st.session_state.analises = {}
+
+if jogo_selecionado not in st.session_state.analises:
+    st.session_state.analises[jogo_selecionado] = {
+        "respostas": [False] * len(checklist),
+        "historico": [],
+        "odd_oferecida": 1.80,
+        "comentarios": ""
+    }
+
+# Atualiza dados atuais da sessão
+analise = st.session_state.analises[jogo_selecionado]
+
 # Tabela de estatísticas simuladas
 dados = {
-    "Time": ["Brasil", "Argentina"],
+    "Time": jogo_selecionado.split(" x "),
     "Últimos 5 Jogos (Vitórias)": [4, 3],
     "Odds": [1.80, 2.20]
 }
@@ -77,8 +92,9 @@ cols = st.columns(4)
 respostas = []
 for i, (pergunta, peso) in enumerate(checklist.items()):
     col = cols[i % 4]
-    marcado = col.checkbox(pergunta)
+    marcado = col.checkbox(pergunta, value=analise["respostas"][i])
     respostas.append(peso if marcado else 0)
+    analise["respostas"][i] = marcado
 
 pontuacao_total = sum(checklist.values())
 pontuacao_usuario = sum(respostas)
@@ -88,10 +104,8 @@ st.markdown(f"**Pontuação de Confiança Total:** {pontuacao_usuario} / {pontua
 st.progress(confianca_percentual / 100)
 
 # Histórico de confiança
-if "historico_confiança" not in st.session_state:
-    st.session_state.historico_confiança = []
-st.session_state.historico_confiança.append({"Data": datetime.datetime.now(), "Confiança (%)": confianca_percentual})
-df_hist = pd.DataFrame(st.session_state.historico_confiança)
+analise["historico"].append({"Data": datetime.datetime.now(), "Confiança (%)": confianca_percentual})
+df_hist = pd.DataFrame(analise["historico"])
 with st.expander("📈 Evolução Histórica da Confiança"):
     st.line_chart(df_hist.set_index("Data"))
 
@@ -120,9 +134,9 @@ st.plotly_chart(fig, use_container_width=True)
 
 # Cálculo de valor esperado e Kelly
 st.subheader("⚙️ Cálculo de Valor Esperado e Kelly")
-odd_oferecida = st.number_input("Odd Oferecida pela Casa para Vitória", value=1.80, step=0.01)
-valor_esperado = (vitoria / 100) * odd_oferecida - 1
-kelly = kelly_formula(vitoria / 100, odd_oferecida - 1)
+analise["odd_oferecida"] = st.number_input("Odd Oferecida pela Casa para Vitória", value=analise["odd_oferecida"], step=0.01)
+valor_esperado = (vitoria / 100) * analise["odd_oferecida"] - 1
+kelly = kelly_formula(vitoria / 100, analise["odd_oferecida"] - 1)
 
 col1, col2 = st.columns(2)
 col1.metric(label="Valor Esperado (EV)", value=f"{valor_esperado:.2f}")
@@ -140,7 +154,7 @@ else:
 st.subheader("📊 Comparação Visual: Odd Justa x Odd da Casa")
 comparativo = pd.DataFrame({
     "Tipo": ["Odd Justa", "Odd da Casa"],
-    "Valor": [odds_vitoria, odd_oferecida]
+    "Valor": [odds_vitoria, analise["odd_oferecida"]]
 })
 fig_bar = px.bar(comparativo, x="Tipo", y="Valor", color="Tipo", title="Comparação de Odds")
 st.plotly_chart(fig_bar, use_container_width=True)
@@ -161,4 +175,5 @@ st.dataframe(jogos_proximos, use_container_width=True)
 
 # Notas do Analista
 st.subheader("📝 Anotações do Analista")
-st.text_area("Comentários, observações ou insights sobre este jogo:", height=150)
+analise["comentarios"] = st.text_area("Comentários, observações ou insights sobre este jogo:",
+                                       value=analise["comentarios"], height=150)
