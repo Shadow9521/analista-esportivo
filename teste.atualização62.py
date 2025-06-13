@@ -1,3 +1,4 @@
+# === PARTE 1: Setup, Estilo, Entrada de Dados ===
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -23,11 +24,9 @@ def get_base64_image(image_path):
     with open(image_path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
-# Configuração inicial
 st.set_page_config(page_title="Analista Esportivo Inteligente", layout="wide")
-
-# Fundo com imagem
 background_image_base64 = get_base64_image("ChatGPTima.png")
+
 st.markdown(f"""
     <style>
     .stApp {{
@@ -42,23 +41,23 @@ st.markdown(f"""
         padding: 2rem;
         border-radius: 15px;
     }}
-    input, textarea {{
-        background-color: #111;
-        color: white;
-    }}
+    input, textarea {{ background-color: #111; color: white; }}
     .stMarkdown, .stTextInput, .stNumberInput, .stRadio, .stButton, .stDownloadButton {{
         color: white !important;
     }}
     </style>
 """, unsafe_allow_html=True)
 
-# Cabeçalho
 st.markdown("""
     <div style="padding: 30px; border-radius: 10px; color: white; margin-bottom: 30px;">
         <h1>⚽ Analista Esportivo Inteligente</h1>
         <p>Preencha os dados abaixo para começar a análise:</p>
     </div>
 """, unsafe_allow_html=True)
+
+# Controle de FASES
+if 'fase' not in st.session_state:
+    st.session_state.fase = 1
 
 # Entrada de dados
 col_titulo, col_banca = st.columns([5, 1])
@@ -107,8 +106,18 @@ fatores = [
     ("O gramado é bom ou ruim?", 1)
 ]
 
+# ==============================
+# === PARTE 2: Checklist dinâmico com gráfico ===
+if st.session_state.fase == 2:
+# ==============================
+
 st.subheader(f"✅ CHECKLIST DE ANÁLISE DO JOGO: {time_casa} x {time_fora}")
 st.markdown("### 🧠 Responda cada critério de forma interativa:")
+
+if st.session_state.fase == 1:
+    if st.button("➡️ Começar Checklist"):
+        st.session_state.fase = 2
+        st.rerun()
 
 if 'etapa' not in st.session_state:
     st.session_state.etapa = 0
@@ -120,29 +129,29 @@ if 'avancar' not in st.session_state:
 etapa = st.session_state.etapa
 respostas = st.session_state.respostas
 
-# Cálculo das probabilidades (sempre atualizado)
-saldo_casa = sum([peso for peso, msg in respostas if '⬆️' in msg])
-saldo_fora = sum([-peso for peso, msg in respostas if '⬇️' in msg])
-prob_casa = max(0, 50 + saldo_casa)
-prob_fora = max(0, 50 + saldo_fora)
-total = prob_casa + prob_fora
-vitoria = round((prob_casa / total) * 100, 1) if total > 0 else 50
-derrota = round((prob_fora / total) * 100, 1) if total > 0 else 50
-empate = round(100 - vitoria - derrota, 1)
+if etapa < len(fatores) and st.session_state.fase == 2:
+    saldo_casa = sum([peso for peso, msg in respostas if '⬆️' in msg])
+    saldo_fora = sum([-peso for peso, msg in respostas if '⬇️' in msg])
 
-odds_justas = {
-    "Vitória": calcular_odds(vitoria),
-    "Empate": calcular_odds(empate),
-    "Derrota": calcular_odds(derrota)
-}
+    prob_casa = max(0, 50 + saldo_casa)
+    prob_fora = max(0, 50 + saldo_fora)
+    total = prob_casa + prob_fora
+    vitoria = round((prob_casa / total) * 100, 1) if total > 0 else 50
+    derrota = round((prob_fora / total) * 100, 1) if total > 0 else 50
+    empate = round(100 - vitoria - derrota, 1)
 
-data_grafico = pd.DataFrame({
-    "Resultado": [time_casa, "Empate", time_fora],
-    "Probabilidade": [vitoria, empate, derrota],
-    "Odd": [odds_justas["Vitória"], odds_justas["Empate"], odds_justas["Derrota"]]
-})
+    odds_justas = {
+        "Vitória": calcular_odds(vitoria),
+        "Empate": calcular_odds(empate),
+        "Derrota": calcular_odds(derrota)
+    }
 
-if etapa < len(fatores):
+    data_grafico = pd.DataFrame({
+        "Resultado": [time_casa, "Empate", time_fora],
+        "Probabilidade": [vitoria, empate, derrota],
+        "Odd": [odds_justas["Vitória"], odds_justas["Empate"], odds_justas["Derrota"]]
+    })
+
     col_pergunta, col_grafico = st.columns([2, 1])
     with col_pergunta:
         pergunta, peso = fatores[etapa]
@@ -160,51 +169,45 @@ if etapa < len(fatores):
             else:
                 respostas.append((0, f"⚖️ {pergunta} → Nenhuma vantagem (0%)"))
             st.session_state.etapa += 1
+            if st.session_state.etapa >= len(fatores):
+                st.session_state.fase = 3
             st.session_state.avancar = False
             st.rerun()
 
         st.progress(etapa / len(fatores))
 
     with col_grafico:
-        mercado_total = sum([100 / odd for odd in [odd_vitoria, odd_empate, odd_derrota]])
-        mercado_casa = round((100 / odd_vitoria) / mercado_total * 100, 1)
-        mercado_empate = round((100 / odd_empate) / mercado_total * 100, 1)
-        mercado_fora = round((100 / odd_derrota) / mercado_total * 100, 1)
+        fig = px.pie(data_grafico, names="Resultado", values="Probabilidade", hole=0.4, color="Resultado",
+                     color_discrete_sequence=["#00cc96", "#636efa", "#ef553b"])
+        fig.update_traces(textinfo="label+percent+value", textfont_size=14)
+        fig.update_layout(height=350, margin=dict(t=20, b=20, l=0, r=0))
+        st.plotly_chart(fig, use_container_width=True)
+# === PARTE 3: Resultado final, odds, fórmula de Kelly e exportação ===
+if st.session_state.fase == 3:
+# ==============================
 
-        df_analise = pd.DataFrame({
-            "Resultado": [time_casa, "Empate", time_fora],
-            "Probabilidade": [vitoria, empate, derrota]
-        })
-
-        df_mercado = pd.DataFrame({
-            "Resultado": [time_casa, "Empate", time_fora],
-            "Probabilidade": [mercado_casa, mercado_empate, mercado_fora]
-        })
-
-        fig1 = px.pie(df_analise, names="Resultado", values="Probabilidade", hole=0.5,
-                  color="Resultado", color_discrete_sequence=["#00cc96", "#636efa", "#ef553b"])
-        fig1.update_traces(textinfo="percent+label")
-        fig1.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=500, width=500)
-
-        fig2 = px.pie(df_mercado, names="Resultado", values="Probabilidade", hole=0.5,
-              color="Resultado", color_discrete_sequence=["#00cc96", "#636efa", "#ef553b"])
-        fig2.update_traces(textinfo="percent+label")
-        fig2.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=500, width=500)
-
-        col1, col2, col3 = st.columns([1, 4, 1])
-        with col2:
-    st.markdown("### 🎯 Sua Análise")
-    st.plotly_chart(fig1, use_container_width=True)
-    st.markdown("### 📊 Mercado")
-    st.plotly_chart(fig2, use_container_width=True)
-
-else:
     st.markdown("### 🧮 Construção da Probabilidade Estimada")
     for _, msg in respostas:
         st.markdown(f"- {msg}")
 
+    saldo_casa = sum([peso for peso, msg in respostas if '⬆️' in msg])
+    saldo_fora = sum([-peso for peso, msg in respostas if '⬇️' in msg])
+
+    prob_casa = max(0, 50 + saldo_casa)
+    prob_fora = max(0, 50 + saldo_fora)
+    total = prob_casa + prob_fora
+    vitoria = round((prob_casa / total) * 100, 1) if total > 0 else 50
+    derrota = round((prob_fora / total) * 100, 1) if total > 0 else 50
+    empate = round(100 - vitoria - derrota, 1)
+
     st.markdown(f"**📊 Saldo de Vantagem:** {time_casa}: {saldo_casa}% | {time_fora}: {saldo_fora}%**")
     st.markdown(f"**🎯 Probabilidade final estimada de vitória do {time_casa}: {vitoria}%**")
+
+    odds_justas = {
+        "Vitória": calcular_odds(vitoria),
+        "Empate": calcular_odds(empate),
+        "Derrota": calcular_odds(derrota)
+    }
 
     st.subheader("📊 Probabilidades e Odds Justas")
     df_prob = pd.DataFrame({
@@ -222,21 +225,30 @@ else:
     fig = px.pie(df_prob, names='Resultado', values='Probabilidade (%)', title='Distribuição de Probabilidades')
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("⚙️ Valor Esperado e Stake Kelly")
-    melhores_apostas = []
-    for resultado, prob, odd in zip(["Vitória", "Empate", "Derrota"], [vitoria, empate, derrota], [odd_vitoria, odd_empate, odd_derrota]):
-        ev = (prob / 100) * odd - 1
-        kelly = kelly_formula(prob / 100, odd - 1)
-        stake = banca * kelly
-        if ev > 0:
-            melhores_apostas.append((resultado, ev, kelly, stake))
+    st.subheader("⚙️ Valor Esperado e Stake Kelly (Vitória)")
+    valor_esperado = (vitoria / 100) * odd_vitoria - 1
+    kelly = kelly_formula(vitoria / 100, odd_vitoria - 1)
+    stake_kelly = banca * kelly
 
-    if melhores_apostas:
-        melhor = max(melhores_apostas, key=lambda x: x[1])
-        lado = melhor[0]
-        st.success(f"✅ Melhor aposta: {lado} com EV de {melhor[1]:.2f} e stake de R$ {melhor[3]:.2f} (Kelly {melhor[2]*100:.1f}%)")
+    st.markdown("### 💡 Recomendação Final")
+    if valor_esperado > 0:
+        st.success("✅ Aposta com valor positivo. Pode valer a pena apostar.")
+    elif valor_esperado == 0:
+        st.info("⚠️ Aposta neutra. Sem valor esperado.")
     else:
-        st.warning("❌ Nenhuma aposta tem valor esperado positivo. Reavalie o jogo ou evite apostar.")
+        st.warning("❌ Aposta com valor negativo. Evite apostar.")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(label="Valor Esperado (EV)", value=f"{valor_esperado:.2f}")
+    col2.metric(label="Stake Kelly (%)", value=f"{kelly * 100:.1f}%")
+    col3.metric(label="Stake R$", value=f"R$ {stake_kelly:.2f}")
+
+    if valor_esperado > 0:
+        st.success("✅ Aposta com valor positivo. Pode valer a pena apostar.")
+    elif valor_esperado == 0:
+        st.info("⚠️ Aposta neutra. Sem valor esperado.")
+    else:
+        st.warning("❌ Aposta com valor negativo. Evite apostar.")
 
     st.subheader("📥 Exportar Dados")
     excel_data = export_df_to_excel(df_prob)
