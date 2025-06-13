@@ -191,12 +191,11 @@ if etapa < len(fatores):
         fig2.update_traces(textinfo="percent+label")
         fig2.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=500, width=500)
 
-        col1, col2, col3 = st.columns([1, 4, 1])
         with col2:
-        st.markdown("### 🎯 Sua Análise")
-        st.plotly_chart(fig1, use_container_width=True)
-        st.markdown("### 📊 Mercado")
-        st.plotly_chart(fig2, use_container_width=True)
+            st.markdown("### 🎯 Sua Análise")
+            st.plotly_chart(fig1, use_container_width=True)
+            st.markdown("### 📊 Mercado")
+            st.plotly_chart(fig2, use_container_width=True)
 
 else:
     st.markdown("### 🧮 Construção da Probabilidade Estimada")
