@@ -172,11 +172,51 @@ if st.session_state.fase == 2:
             st.progress(etapa / len(fatores))
 
         with col_grafico:
-            fig = px.pie(data_grafico, names="Resultado", values="Probabilidade", hole=0.4,
-                         color="Resultado", color_discrete_sequence=["#00cc96", "#636efa", "#ef553b"])
-            fig.update_traces(textinfo="label+percent+value", textfont_size=14)
-            fig.update_layout(height=350, margin=dict(t=20, b=20, l=0, r=0))
-            st.plotly_chart(fig, use_container_width=True)
+    # Probabilidades da análise
+    prob_analise = [vitoria, empate, derrota]
+
+    # Probabilidades do mercado com base nas odds inseridas
+    prob_mercado_v = 100 / odd_vitoria if odd_vitoria > 0 else 0
+    prob_mercado_e = 100 / odd_empate if odd_empate > 0 else 0
+    prob_mercado_d = 100 / odd_derrota if odd_derrota > 0 else 0
+
+    total_mercado = prob_mercado_v + prob_mercado_e + prob_mercado_d
+    if total_mercado > 0:
+        prob_mercado = [
+            round(prob_mercado_v / total_mercado * 100, 1),
+            round(prob_mercado_e / total_mercado * 100, 1),
+            round(prob_mercado_d / total_mercado * 100, 1)
+        ]
+    else:
+        prob_mercado = [0, 0, 0]
+
+    data_comparativo = pd.DataFrame({
+        "Resultado": [f"{time_casa} 🏠", "Empate 🤝", f"{time_fora} 🛫"] * 2,
+        "Probabilidade (%)": prob_analise + prob_mercado,
+        "Fonte": ["Sua Análise"] * 3 + ["Mercado"] * 3
+    })
+
+    fig = px.bar(
+        data_comparativo,
+        x="Resultado",
+        y="Probabilidade (%)",
+        color="Fonte",
+        barmode="group",
+        text="Probabilidade (%)",
+        color_discrete_map={
+            "Sua Análise": "#00cc96",
+            "Mercado": "#ef553b"
+        }
+    )
+
+    fig.update_layout(
+        title="📊 Comparativo: Sua Análise x Odds do Mercado",
+        yaxis=dict(range=[0, 100]),
+        height=380,
+        margin=dict(t=30, b=20)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
 # === Início do Checklist ===
 if st.session_state.fase == 1:
